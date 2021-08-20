@@ -5,10 +5,11 @@ description = "Web Crawler to get newest items posted on the second hand fashion
 authors = ["Martha Braun"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = ">=3.7.1,<3.11"
 pandas = "^1.3.2"
 numpy = "^1.21.2"
 selenium = "^3.141.0"
+tqdm = "^4.62.1"
 
 [tool.poetry.dev-dependencies]
 
