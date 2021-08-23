@@ -12,6 +12,7 @@ selenium = "^3.141.0"
 tqdm = "^4.62.1"
 gspread = "^4.0.1"
 df2gspread = "^1.0.4"
+gspread-dataframe = "^3.2.1"
 
 [tool.poetry.dev-dependencies]
 
