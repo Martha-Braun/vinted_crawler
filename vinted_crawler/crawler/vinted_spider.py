@@ -1,3 +1,8 @@
+# coding=utf-8
+import sys
+
+sys.path.append("/Users/marthab/vinted_crawler/vinted_crawler")
+
 import pandas as pd
 import numpy as np
 import logging
@@ -16,7 +21,7 @@ from df2gspread import df2gspread as d2g
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread_dataframe as gd
 
-from vinted_crawler.confidential.conf_constants import *
+from confidential.conf_constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,7 @@ class VintedCrawler:
 
         # don't accept cookies
         try:
-            # privatsphäre-einstellung alle ablehnen
+            # privatsphaere-einstellung alle ablehnen
             reject_all_button = driver.find_element_by_css_selector(
                 "#onetrust-reject-all-handler"
             )
@@ -168,25 +173,30 @@ class VintedCrawler:
         logging.info("Product Details saved to DataFrame...")
         product_details_df = pd.DataFrame(product_details)
 
-        # get product_details_df from yesterday
+        # get product_details_df from yesterday only if yesterday files exists
         date_suffix_yes = "".join(str(yesterday).split("-"))
-        product_details_df_old = pd.read_csv(
-            f"vinted_crawler/data/{date_suffix_yes}_product_details.csv", index_col=0
-        )
+        try:
+            product_details_df_old = pd.read_csv(
+                f"vinted_crawler/data/{date_suffix_yes}_product_details.csv",
+                index_col=0,
+            )
 
-        # get elements in product_details_df_new that are NOT in product_details_df_old
-        new_non_duplicate = np.setdiff1d(
-            list(product_details_df["Product_Id"]),
-            list(product_details_df_old["Product_Id"]),
-        )
+            # get elements in product_details_df_new that are NOT in product_details_df_old
+            new_non_duplicate = np.setdiff1d(
+                list(product_details_df["Product_Id"]),
+                list(product_details_df_old["Product_Id"]),
+            )
 
-        # save product_details_df, keep only product_ids that were not in yesterdays df
-        date_suffix = "".join(str(today).split("-"))
-        filt = product_details_df["Product_Id"].isin(list(new_non_duplicate))
-        product_details_df[filt].to_csv(
-            f"vinted_crawler/data/{date_suffix}_product_details.csv"
-        )
-        self.product_details_today = product_details_df[filt].copy()
+            # save product_details_df, keep only product_ids that were not in yesterdays df
+            date_suffix = "".join(str(today).split("-"))
+            filt = product_details_df["Product_Id"].isin(list(new_non_duplicate))
+            product_details_df[filt].to_csv(
+                f"vinted_crawler/data/{date_suffix}_product_details.csv"
+            )
+            self.product_details_today = product_details_df[filt].copy()
+
+        except:
+            self.product_details_today = product_details_df.copy()
 
     def import_to_gs(self):
         # import google credentials

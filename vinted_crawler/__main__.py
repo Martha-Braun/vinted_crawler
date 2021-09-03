@@ -1,4 +1,4 @@
-from vinted_crawler.crawler.vinted_crawler import VintedCrawler
+from vinted_crawler.crawler.vinted_spider import VintedCrawler
 
 
 def main():
