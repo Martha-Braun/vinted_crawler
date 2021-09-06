@@ -22,6 +22,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread_dataframe as gd
 
 from confidential.conf_constants import *
+from constants.website_constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,9 @@ class VintedCrawler:
     def __init__(self):
         # to be created
         self.product_details_today = None
+        self.driver = None
 
-    def __create_instance(self):
+    def create_instance(self):
         # setting up chrome options
         chrome_options = Options()
         # browsing in incognito mode
@@ -75,21 +77,19 @@ class VintedCrawler:
         # wait 2 sec for page to fully load
         time.sleep(2)
 
-        return driver
+        self.driver = driver
 
-    def get_product_details(self):
-
-        logging.info("Creating Instance")
-        # create instance and decline cookies
-        driver = self.__create_instance()
+    def get_product_details(self, brand: str):
 
         logging.info("Getting product URLs of all products on first 5 pages...")
-        # get url of all products on first 5 pages
+        # get url of all products on first n pages
         product_urls = []
-        for page in range(1, 5, 1):
-            page_url = f"https://www.vinted.de/vetements?brand_id[]=168278&catalog[]=1904&order=newest_first&page={page}"
-            driver.get(page_url)
-            products = driver.find_elements_by_css_selector("a.ItemBox_overlay__1kNfX")
+        for page in range(1, N_PAGES, 1):
+            page_url = f"https://www.vinted.de/vetements?brand_id[]={BRAND_ID[brand]}&catalog[]=1904&order=newest_first&page={page}"
+            self.driver.get(page_url)
+            products = self.driver.find_elements_by_css_selector(
+                "a.ItemBox_overlay__1kNfX"
+            )
             product_urls_page = [prod.get_attribute("href") for prod in products]
             product_urls.extend(product_urls_page)
 
@@ -99,10 +99,10 @@ class VintedCrawler:
         yesterday = today - datetime.timedelta(days=1)
 
         for product_url in tqdm(product_urls):
-            driver.get(product_url)
+            self.driver.get(product_url)
 
             # get upload_date and stop for loop if item was uploaded more than 1 day ago
-            upload_date_full = driver.find_element_by_xpath(
+            upload_date_full = self.driver.find_element_by_xpath(
                 "//div[@class='details-list__item-value']/time"
             ).get_attribute("datetime")
             upload_date = datetime.datetime.strptime(
@@ -114,28 +114,28 @@ class VintedCrawler:
             # get product id from url
             product_id = product_url.split("/")[-1]
 
-            # get product subcatgory from url
+            # get product subcategory from url
             product_subcat = product_url.split("/")[-2]
 
-            # get product catgory from url
+            # get product category from url
             product_cat = product_url.split("/")[-3]
 
             # get brand
-            brand = driver.find_element_by_xpath(
+            brand_name = self.driver.find_element_by_xpath(
                 "//a[@itemprop='url']/span[@itemprop='name']"
             ).text
 
             # get price
-            price = driver.find_element_by_xpath(
+            price = self.driver.find_element_by_xpath(
                 "/html/body/div[5]/div/section/div/div[2]/main/aside/div[1]/div[1]/div[1]/div[1]/span/div"
             ).text
 
             # get size
             try:
-                size_check = driver.find_element_by_xpath(
+                size_check = self.driver.find_element_by_xpath(
                     "//div[@class='details-list__item u-position-relative']/div[contains(text(), 'Größe')]"
                 )
-                size = driver.find_element_by_xpath(
+                size = self.driver.find_element_by_xpath(
                     "/html/body/div[5]/div/section/div/div[2]/main/aside/div[1]/div[1]/div[2]/div[2]/div[2]"
                 ).text
             except NoSuchElementException:
@@ -143,7 +143,7 @@ class VintedCrawler:
 
             # get item condition
             try:
-                condition = driver.find_element_by_xpath(
+                condition = self.driver.find_element_by_xpath(
                     "//div[@itemprop='itemCondition']"
                 ).text
             except:
@@ -151,7 +151,9 @@ class VintedCrawler:
 
             # get colour
             try:
-                colour = driver.find_element_by_xpath("//div[@itemprop='color']").text
+                colour = self.driver.find_element_by_xpath(
+                    "//div[@itemprop='color']"
+                ).text
             except NoSuchElementException:
                 colour = "-"
 
@@ -160,7 +162,7 @@ class VintedCrawler:
                 "Product_Id": product_id,
                 "Category": product_cat,
                 "Sub_Category": product_subcat,
-                "Brand": brand,
+                "Brand": brand_name,
                 "Price": price,
                 "Size": size,
                 "Condition": condition,
@@ -173,11 +175,13 @@ class VintedCrawler:
         logging.info("Product Details saved to DataFrame...")
         product_details_df = pd.DataFrame(product_details)
 
-        # get product_details_df from yesterday only if yesterday files exists
+        # get product_details_df from yesterday, only if yesterday files exists
         date_suffix_yes = "".join(str(yesterday).split("-"))
+        date_suffix = "".join(str(today).split("-"))
+
         try:
             product_details_df_old = pd.read_csv(
-                f"vinted_crawler/data/{date_suffix_yes}_product_details.csv",
+                f"vinted_crawler/data/{date_suffix_yes}_{brand}.csv",
                 index_col=0,
             )
 
@@ -188,23 +192,28 @@ class VintedCrawler:
             )
 
             # save product_details_df, keep only product_ids that were not in yesterdays df
-            date_suffix = "".join(str(today).split("-"))
             filt = product_details_df["Product_Id"].isin(list(new_non_duplicate))
             product_details_df[filt].to_csv(
-                f"vinted_crawler/data/{date_suffix}_product_details.csv"
+                f"vinted_crawler/data/{date_suffix}_{brand}.csv"
             )
             self.product_details_today = product_details_df[filt].copy()
 
         except:
+            product_details_df.to_csv(f"vinted_crawler/data/{date_suffix}_{brand}.csv")
             self.product_details_today = product_details_df.copy()
 
-    def import_to_gs(self):
+        if self.product_details_today.shape[0] == 0:
+            self.product_details_today.loc[
+                0, "Unnamed: 0"
+            ] = f"No new uploads on {today}"
+
+    def import_to_gs(self, brand: str):
         # import google credentials
         scope = [SPSH_URL, GAPI_URL]
         credentials = ServiceAccountCredentials.from_json_keyfile_name(GKEY_PATH, scope)
         gc = gspread.authorize(credentials)
         spreadsheet_key = SPSH_KEY
-        wks_name = "crawler_output"
+        wks_name = brand
 
         ws = gc.open_by_key(spreadsheet_key).worksheet(wks_name)
 
