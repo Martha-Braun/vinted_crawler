@@ -1,5 +1,9 @@
-from vinted_crawler.crawler.vinted_spider import VintedCrawler
-from vinted_crawler.constants.website_constants import *
+import sys
+
+sys.path.append("/Users/marthab/vinted_crawler/vinted_crawler")
+
+from crawler.vinted_spider import VintedCrawler
+from constants.website_constants import *
 
 
 def main():

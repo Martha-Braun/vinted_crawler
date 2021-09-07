@@ -17,7 +17,6 @@ from selenium.webdriver import ActionChains
 from selenium.common.exceptions import NoSuchElementException
 
 import gspread
-from df2gspread import df2gspread as d2g
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread_dataframe as gd
 
@@ -32,6 +31,7 @@ class VintedCrawler:
         # to be created
         self.product_details_today = None
         self.driver = None
+        self.today = None
 
     def create_instance(self):
         # setting up chrome options
@@ -179,6 +179,8 @@ class VintedCrawler:
         date_suffix_yes = "".join(str(yesterday).split("-"))
         date_suffix = "".join(str(today).split("-"))
 
+        self.today = today
+
         try:
             product_details_df_old = pd.read_csv(
                 f"vinted_crawler/data/{date_suffix_yes}_{brand}.csv",
@@ -213,9 +215,23 @@ class VintedCrawler:
         credentials = ServiceAccountCredentials.from_json_keyfile_name(GKEY_PATH, scope)
         gc = gspread.authorize(credentials)
         spreadsheet_key = SPSH_KEY
+        spreadsheet = gc.open_by_key(spreadsheet_key)
         wks_name = brand
 
-        ws = gc.open_by_key(spreadsheet_key).worksheet(wks_name)
+        # create new worksheet if not existant yet
+        try:
+            ws = spreadsheet.worksheet(wks_name)
+
+        except:
+            ws = spreadsheet.add_worksheet(title=brand, rows="100", cols="20")
+            ws.update(COLUMN_NAME_CELLS, [COLUMN_NAMES])
+            ws.format(
+                COLUMN_NAME_CELLS,
+                {
+                    "textFormat": {"bold": True},
+                    "backgroundColor": {"red": 80, "green": 80, "blue": 80},
+                },
+            )
 
         logging.info("Uploading New DataFrame to Google Sheets")
         # add as many rows as new dataframe has
@@ -232,3 +248,7 @@ class VintedCrawler:
             row=2,
             resize=False,
         )
+
+        # change update date
+        ws_date = gc.open_by_key(spreadsheet_key).worksheet(DATE_SHEET)
+        ws_date.update(DATE_CELL, str(self.today))
