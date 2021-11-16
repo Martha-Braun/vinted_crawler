@@ -46,7 +46,6 @@ class VintedCrawler:
             chrome_options=chrome_options,
             executable_path="/Users/marthab/Desktop/Python_Labs/vinted_crawler/chromedriver",
         )
-
         # set url to Women > Jacquemus > filter:newest first
         url = "https://www.vinted.de/vetements?brand_id[]=168278&catalog[]=1904&order=newest_first"
         driver.get(url)
@@ -208,6 +207,7 @@ class VintedCrawler:
             self.product_details_today.loc[
                 0, "Unnamed: 0"
             ] = f"No new uploads on {today}"
+
 
     def import_to_gs(self, brand: str):
         # import google credentials
